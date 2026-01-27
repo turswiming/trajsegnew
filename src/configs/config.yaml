@@ -1,0 +1,85 @@
+# Configuration file for trajectories_for_seg
+
+# Model
+model:
+  type: "ogc_pointnet"  # Options: "teacher_student" or "ogc_pointnet"
+  # For teacher_student model:
+  use_pretrained: true
+  pretrained_name: "concerto_outdoor"  # Options: "sonata", "sonata_small", "concerto_outdoor", "concerto_indoor"
+  pretrained_path: "checkpoints/pretrained/concerto_large_outdoor.pth"  # Path to local checkpoint
+  feature_dim: 768  # Concerto large: 768, Sonata: 512, Sonata small: 384
+  ema_decay: 0.999
+  freeze_encoder: true  # Freeze encoder, only train MaskFormer head
+  # For ogc_pointnet model:
+  n_point: 8192
+  n_transformer_layer: 2
+  transformer_embed_dim: 256
+  transformer_input_pos_enc: false
+
+# Training
+training:
+  batch_size: 4
+  num_epochs: 100
+  learning_rate: 1e-4
+  weight_decay: 1e-4
+  num_workers: 4
+  save_every: 10
+  eval_every: 5
+  gradient_accumulation_steps: 1
+# Loss weights
+loss:
+  flow_smooth_weight: 1
+  invariance_weight: 0.0  
+  point_smooth_weight: 0.0
+  trajectory_weight: 0 
+  
+  # Flow smooth loss config
+  flow_smooth:
+    each_mask_item_gradient: 0
+    sum_mask_item_gradient: 1
+    each_mask_item_loss: "L2"
+    sum_mask_item_loss: "L2"
+    scale_flow_grad: 1.0
+    square_mask: false
+    normalize_flow: true
+    singular_value_loss_gradient: 0.0
+    sparse_filter_ratio: 0.0
+    downsample_ratio: 8
+  
+  # Point smooth loss config
+  point_smooth:
+    w_knn: 3.0
+    w_ball_q: 1.0
+    knn_loss_params:
+      k: 8
+      radius: 0.1
+      loss_norm: 1
+    ball_q_loss_params:
+      k: 16
+      radius: 0.2
+      loss_norm: 1
+  
+  # Trajectory loss config
+  trajectory:
+    r: 5  # Rank threshold for SVD
+    knn_search_size: 3  # KNN search size (not used with binary mask, kept for compatibility)
+    criterion: "L2"  # Loss criterion: "L2" or "L1"
+    downsample_ratio: 4
+
+# Data
+data:
+  use_debug_datasets: false  # 启用调试数据集
+  debug_train_size: 1000    # 训练数据集大小（可选，默认1000）
+  debug_val_size: 1        # 验证数据集大小（可选，默认100）
+  train_dir: "/workspace/seg_train"
+  val_dir: "/workspace/seg_val"
+  num_segments: 64  # Number of segmentation masks K
+
+# Paths
+paths:
+  log_dir: "logs"
+  checkpoint_dir: "checkpoints"
+  output_dir: "outputs"
+
+# Device
+device: "cuda"
