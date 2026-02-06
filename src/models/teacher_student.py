@@ -166,7 +166,7 @@ class TeacherStudentModel(nn.Module):
         result = {
             'student_features': student_points,  # Point object, for consistency loss
             'downsampled_student_masks': student_masks,      # [K, N_down] masks at downsampled scale
-            'upsampled_student_masks': upsampled_masks,      # [K, N_total] masks at original scale
+            'pred_masks': upsampled_masks,      # [K, N_total] masks at original scale
             'upsampled_batch': batch,                       # [N_total] batch indices for upsampled points
             'downsampled_batch': down_batch,                # [N_down] batch indices for downsampled points
             'down_indices': down_indices,                  # [N_down] indices into original point cloud

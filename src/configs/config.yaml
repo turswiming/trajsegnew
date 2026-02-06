@@ -2,9 +2,9 @@
 
 # Model
 model:
-  type: "ogc_pointnet"  # Options: "teacher_student" or "ogc_pointnet"
+  type: "deltaflow_seg"  # Options: "teacher_student" or "ogc_pointnet" deltaflow_seg
   # For teacher_student model:
-  use_pretrained: true
+  use_pretrained: false
   pretrained_name: "concerto_outdoor"  # Options: "sonata", "sonata_small", "concerto_outdoor", "concerto_indoor"
   pretrained_path: "checkpoints/pretrained/concerto_large_outdoor.pth"  # Path to local checkpoint
   feature_dim: 768  # Concerto large: 768, Sonata: 512, Sonata small: 384
@@ -18,14 +18,21 @@ model:
 
 # Training
 training:
-  batch_size: 4
-  num_epochs: 100
-  learning_rate: 1e-4
+  batch_size: 12
+  num_epochs: 2
+  learning_rate: 5e-5
   weight_decay: 1e-4
   num_workers: 4
   save_every: 10
   eval_every: 5
   gradient_accumulation_steps: 1
+  val_check_interval: 0.1  # Validate every 0.1 epoch (10% of each epoch)
+  # Learning rate scheduler
+  lr_scheduler:
+    type: "cosine_warmup"  # Options: "cosine_warmup", "none"
+    warmup_steps: 500  # Number of warmup steps (or use warmup_epochs)
+    warmup_epochs: 0  # Number of warmup epochs (if > 0, overrides warmup_steps)
+    min_lr_ratio: 1e-6  # Minimum LR as ratio of initial LR (for cosine decay)
 # Loss weights
 loss:
   flow_smooth_weight: 1
@@ -44,7 +51,7 @@ loss:
     normalize_flow: true
     singular_value_loss_gradient: 0.0
     sparse_filter_ratio: 0.0
-    downsample_ratio: 8
+    downsample_ratio: 4
   
   # Point smooth loss config
   point_smooth:
@@ -71,9 +78,9 @@ data:
   use_debug_datasets: false  # 启用调试数据集
   debug_train_size: 1000    # 训练数据集大小（可选，默认1000）
   debug_val_size: 1        # 验证数据集大小（可选，默认100）
-  train_dir: "/workspace/seg_train"
-  val_dir: "/workspace/seg_val"
-  num_segments: 64  # Number of segmentation masks K
+  train_dir: "/root/autodl-tmp/av2_seg/seg_train"
+  val_dir: "/root/autodl-tmp/av2_seg/seg_val"
+  num_segments: 16  # Number of segmentation masks K
 
 # Paths
 paths:
