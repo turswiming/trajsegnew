@@ -129,9 +129,14 @@ class SegmentationLightningModule(pl.LightningModule):
             self.trajectory_loss_fn = None
         
         # Set total steps for learning rate scheduler
-        if hasattr(self, 'trainer') and self.trainer is not None:
-            if hasattr(self.trainer, 'estimated_stepping_batches') and self.trainer.estimated_stepping_batches:
-                self._total_steps = self.trainer.estimated_stepping_batches
+        # Use try-except to safely access trainer (may not be attached during sanity check)
+        try:
+            if self.trainer is not None:
+                if hasattr(self.trainer, 'estimated_stepping_batches') and self.trainer.estimated_stepping_batches:
+                    self._total_steps = self.trainer.estimated_stepping_batches
+        except RuntimeError:
+            # Trainer not attached yet, skip setting total_steps
+            pass
         
     def forward(self, point_dict):
         return self.model(point_dict)
@@ -189,13 +194,15 @@ class SegmentationLightningModule(pl.LightningModule):
         loss_dict['flow_smooth'] = self.config.loss.flow_smooth_weight * flow_smooth_loss.item()
         
         # Point smooth loss
-        if self.config.loss.point_smooth_weight > 0:
+        enable_step = getattr(self.config.loss.point_smooth, 'enable_after_steps', 1000)
+        point_smooth_weight = self.config.loss.point_smooth_weight if self.global_step >= enable_step else 0.0
+        if point_smooth_weight > 0:
             point_smooth_loss = self.point_smooth_loss_fn(
                 pcs_list,
                 student_masks_list_upsampled
             )
-            loss += self.config.loss.point_smooth_weight * point_smooth_loss
-            loss_dict['point_smooth'] = self.config.loss.point_smooth_weight * point_smooth_loss.item()
+            loss += point_smooth_weight * point_smooth_loss
+            loss_dict['point_smooth'] = point_smooth_weight * point_smooth_loss.item()
         
         # Trajectory loss
         if self.trajectory_loss_fn is not None and 'trajectories' in batch:
@@ -281,7 +288,8 @@ class SegmentationLightningModule(pl.LightningModule):
         else:
             flow_smooth_loss = torch.tensor(0.0, device=self.device)
         
-        if self.config.loss.point_smooth_weight > 0 and self.point_smooth_loss_fn is not None:
+        point_smooth_weight = self.config.loss.point_smooth_weight if self.global_step >= getattr(self.config.loss.point_smooth, 'enable_after_steps', 1000) else 0.0
+        if point_smooth_weight > 0 and self.point_smooth_loss_fn is not None:
             point_smooth_loss = self.point_smooth_loss_fn(pcs_list, student_masks_list_upsampled)
         else:
             point_smooth_loss = torch.tensor(0.0, device=self.device)
@@ -350,8 +358,13 @@ class SegmentationLightningModule(pl.LightningModule):
                 # Calculate warmup steps (can be updated in on_train_start)
                 warmup_steps = self._warmup_steps
                 if self._warmup_epochs > 0 and self._total_steps is not None:
-                    steps_per_epoch = self._total_steps / self.trainer.max_epochs
-                    warmup_steps = int(self._warmup_epochs * steps_per_epoch)
+                    try:
+                        if self.trainer is not None:
+                            steps_per_epoch = self._total_steps / self.trainer.max_epochs
+                            warmup_steps = int(self._warmup_epochs * steps_per_epoch)
+                    except RuntimeError:
+                        # Trainer not attached, use default warmup_steps
+                        pass
                 
                 if step < warmup_steps:
                     # Warmup phase: linear increase from 0 to learning_rate
@@ -472,16 +485,17 @@ class SegmentationDataModule(pl.LightningDataModule):
         )
 
 
-def main(config_path="src/configs/config.yaml"):
+def main(config):
     """Main training function."""
-    # Load config
-    config = OmegaConf.load(config_path)
+    # If config is a string, load it
+    if isinstance(config, str):
+        config = OmegaConf.load(config)
     
     # Generate timestamp for this run (UTC+8)
     tz_utc8 = timezone(timedelta(hours=8))
     timestamp = datetime.now(tz_utc8).strftime("%Y%m%d_%H%M%S")
     
-    # Update paths with timestamp
+    # Always update paths with timestamp for new runs
     config.paths.log_dir = os.path.join(config.paths.log_dir, timestamp)
     config.paths.checkpoint_dir = os.path.join(config.paths.checkpoint_dir, timestamp)
     config.paths.output_dir = os.path.join(config.paths.output_dir, timestamp)
@@ -574,7 +588,11 @@ def main(config_path="src/configs/config.yaml"):
     )
     
     # Train
-    trainer.fit(model, data_module)
+    resume_checkpoint = getattr(config.training, 'resume_checkpoint', None)
+    if resume_checkpoint and resume_checkpoint != 'null':
+        trainer.fit(model, data_module, ckpt_path=resume_checkpoint)
+    else:
+        trainer.fit(model, data_module)
     
     logger.info("Training completed!")
     logger.info(f"Best checkpoint: {checkpoint_callback.best_model_path}")
@@ -584,5 +602,14 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=str, default="src/configs/config.yaml")
+    parser.add_argument("--resume_checkpoint", type=str, default=None, help="Path to checkpoint to resume training from")
     args = parser.parse_args()
-    main(args.config)
+    
+    # Load config
+    config = OmegaConf.load(args.config)
+    
+    # Override resume_checkpoint if provided
+    if args.resume_checkpoint:
+        config.training.resume_checkpoint = args.resume_checkpoint
+    
+    main(config)

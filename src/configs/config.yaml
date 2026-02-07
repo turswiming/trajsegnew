@@ -19,14 +19,15 @@ model:
 # Training
 training:
   batch_size: 12
-  num_epochs: 2
-  learning_rate: 5e-5
+  num_epochs: 30
+  learning_rate: 2e-5
   weight_decay: 1e-4
   num_workers: 4
   save_every: 10
   eval_every: 5
   gradient_accumulation_steps: 1
   val_check_interval: 0.1  # Validate every 0.1 epoch (10% of each epoch)
+  resume_checkpoint: null  # Path to checkpoint to resume training from, null to start fresh
   # Learning rate scheduler
   lr_scheduler:
     type: "cosine_warmup"  # Options: "cosine_warmup", "none"
@@ -36,8 +37,8 @@ training:
 # Loss weights
 loss:
   flow_smooth_weight: 1
-  invariance_weight: 0.0  
-  point_smooth_weight: 0.0
+  invariance_weight: 0.0
+  point_smooth_weight: 1
   trajectory_weight: 0 
   
   # Flow smooth loss config
@@ -55,15 +56,16 @@ loss:
   
   # Point smooth loss config
   point_smooth:
+    enable_after_steps: 3000
     w_knn: 3.0
     w_ball_q: 1.0
     knn_loss_params:
       k: 8
-      radius: 0.1
+      radius: 0.3
       loss_norm: 1
     ball_q_loss_params:
       k: 16
-      radius: 0.2
+      radius: 0.6
       loss_norm: 1
   
   # Trajectory loss config

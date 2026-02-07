@@ -42,7 +42,6 @@ checkpoints/
 
 # Data
 data/
-datasets/
 *.h5
 *.hdf5
 
