@@ -18,7 +18,7 @@ model:
 
 # Training
 training:
-  batch_size: 12
+  batch_size: 8
   num_epochs: 30
   learning_rate: 2e-5
   weight_decay: 1e-4
@@ -52,7 +52,7 @@ loss:
     normalize_flow: true
     singular_value_loss_gradient: 0.0
     sparse_filter_ratio: 0.0
-    downsample_ratio: 4
+    downsample_ratio: 1
   
   # Point smooth loss config
   point_smooth:
@@ -82,7 +82,7 @@ data:
   debug_val_size: 1        # 验证数据集大小（可选，默认100）
   train_dir: "/root/autodl-tmp/av2_seg/seg_train"
   val_dir: "/root/autodl-tmp/av2_seg/seg_val"
-  num_segments: 16  # Number of segmentation masks K
+  num_segments: 32  # Number of segmentation masks K
 
 # Paths
 paths:

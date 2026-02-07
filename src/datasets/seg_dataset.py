@@ -7,7 +7,8 @@ import os
 import logging
 import pickle
 
-Split_into_4_part = True
+Split_into_4_part = False
+point_cloud_range = [-51.2, -51.2, -3, 51.2, 51.2, 3]
 
 class SegTrainDataset(Dataset):
     """
@@ -101,6 +102,15 @@ class SegTrainDataset(Dataset):
                     points = points[part4_mask]
                     flow = flow[part4_mask]
                     trajectory = trajectory[part4_mask]
+
+        #filter outliers
+        #boundingbox:
+        boundingmask = (points[:, 0] >= point_cloud_range[0]) & (points[:, 0] <= point_cloud_range[3]) & \
+               (points[:, 1] >= point_cloud_range[1]) & (points[:, 1] <= point_cloud_range[4]) & \
+               (points[:, 2] >= point_cloud_range[2]) & (points[:, 2] <= point_cloud_range[5])
+        points = points[boundingmask]
+        flow = flow[boundingmask]
+        trajectory = trajectory[boundingmask]
         obj = {
             'pc': torch.from_numpy(points).float(),
             'flow': torch.from_numpy(flow).float(),
@@ -212,6 +222,16 @@ class SegValDataset(Dataset):
                 flow = flow[part4_mask]
                 instance_label = instance_label[part4_mask]
                 eval_mask = eval_mask[part4_mask]
+        #filter outliers
+        boundingmask = (points[:, 0] >= point_cloud_range[0]) & (points[:, 0] <= point_cloud_range[3]) & \
+               (points[:, 1] >= point_cloud_range[1]) & (points[:, 1] <= point_cloud_range[4]) & \
+               (points[:, 2] >= point_cloud_range[2]) & (points[:, 2] <= point_cloud_range[5])
+        points = points[boundingmask]
+        flow = flow[boundingmask]
+        instance_label = instance_label[boundingmask]
+        eval_mask = eval_mask[boundingmask]
+        
+        #debug: print the number of different instance labels
         obj = {
             'pc': torch.from_numpy(points).float(),
             'flow': torch.from_numpy(flow).float(),

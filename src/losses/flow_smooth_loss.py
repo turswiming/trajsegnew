@@ -137,24 +137,32 @@ class FlowSmoothLoss(nn.Module):
         point_position = [item.to(self.device) for item in point_position]
         scene_flows = flow
 
+        #根据sceneflow的幅度筛选top-10%的点去计算
+        magnitudes = [torch.norm(sf, dim=-1) for sf in scene_flows]
+        magnitude_masks = []
+        for mag in magnitudes:
+            threshold = torch.quantile(mag, 0.90)
+            magnitude_mask = mag >= threshold
+            magnitude_masks.append(magnitude_mask)
+            pass
+
         total_loss = torch.tensor(0.0, device=self.device)
-        
         for b in range(batch_size):
             # Use gradient checkpoint for each sample to save memory
             if self.use_checkpoint:
                 batch_loss = checkpoint(
                     self._process_single_sample,
-                    point_position[b][::self.downsample_ratio],
-                    mask[b][:,::self.downsample_ratio],
-                    scene_flows[b][::self.downsample_ratio],
+                    point_position[b][magnitude_masks[b]][::self.downsample_ratio],
+                    mask[b][:,magnitude_masks[b]][:,::self.downsample_ratio],
+                    scene_flows[b][magnitude_masks[b]][::self.downsample_ratio],
                     torch.tensor(singular_value_loss, device=self.device),
                     use_reentrant=False
                 )
             else:
                 batch_loss = self._process_single_sample(
-                    point_position[b][::self.downsample_ratio],
-                    mask[b][:,::self.downsample_ratio],
-                    scene_flows[b][::self.downsample_ratio],
+                    point_position[b][magnitude_masks[b]][::self.downsample_ratio],
+                    mask[b][:,magnitude_masks[b]][:,::self.downsample_ratio],
+                    scene_flows[b][magnitude_masks[b]][::self.downsample_ratio],
                     torch.tensor(singular_value_loss, device=self.device)
                 )
             total_loss = total_loss + batch_loss
